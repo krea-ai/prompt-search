@@ -5,14 +5,14 @@ import glob
 import numpy as np
 from autofaiss import build_index
 
-indices_folder = "knn_indices"
+INDICES_FOLDER = "knn_indices"
+EMBEDDINGS_DIR = "visual_embeddings"
 
-embeddings_dir = "visual_embeddings"
-embeddings_path = os.path.join(embeddings_dir, "embeddings")
-out_ids_path = os.path.join(embeddings_dir, "visual_ids.npy")
+embeddings_path = os.path.join(EMBEDDINGS_DIR, "embeddings")
+out_ids_path = os.path.join(EMBEDDINGS_DIR, "visual_ids.npy")
 
 if not os.path.exists(out_ids_path):
-    ids_path = os.path.join(embeddings_dir, "ids")
+    ids_path = os.path.join(EMBEDDINGS_DIR, "ids")
 
     ids_paths = glob.glob(f"{ids_path}/*")
     ids_paths.sort()
@@ -22,10 +22,8 @@ if not os.path.exists(out_ids_path):
 
     np.save(out_ids_path, ids)
 
-# embeddings = np.float32(np.random.rand(100, 512))
-
-prompt_index_filename = os.path.join(indices_folder, "visual_prompts.index")
-infos_index_filename = os.path.join(indices_folder,
+prompt_index_filename = os.path.join(INDICES_FOLDER, "visual_prompts.index")
+infos_index_filename = os.path.join(INDICES_FOLDER,
                                     "visual-prompts-infos.index")
 index, index_infos = build_index(
     embeddings_path,

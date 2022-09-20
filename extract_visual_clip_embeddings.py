@@ -2,9 +2,9 @@ import os
 import csv
 import glob
 
-import numpy as np
 import torch
 import clip
+import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
@@ -12,6 +12,7 @@ from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normal
 try:
     from torchvision.transforms import InterpolationMode
     BICUBIC = InterpolationMode.BICUBIC
+    
 except ImportError:
     BICUBIC = Image.BICUBIC
 
@@ -19,7 +20,10 @@ USE_CACHE = False
 IMG_DIR = "./imgs"
 DATA_PATH = "./data.csv"
 BATCH_SIZE = 128
+NUM_WORKERS = 14
+PERFETCH_FACTOR = 14
 OUTDIR = "./visual_embeddings"
+
 os.makedirs(OUTDIR, exist_ok=True)
 os.makedirs(OUTDIR + "/ids", exist_ok=True)
 os.makedirs(OUTDIR + "/embeddings", exist_ok=True)
@@ -64,7 +68,6 @@ class CLIPImgDataset(Dataset):
 
 def main():
     print("computing generation ID mapper...")
-
     generation_id_to_prompt_id = {}
     with open(DATA_PATH, newline='') as csvfile:
         reader = csv.reader(csvfile)
@@ -81,8 +84,8 @@ def main():
     clip_img_dataloader = DataLoader(
         clip_img_dataset,
         batch_size=BATCH_SIZE,
-        num_workers=14,
-        prefetch_factor=14,
+        num_workers=NUM_WORKERS,
+        prefetch_factor=PERFETCH_FACTOR,
         persistent_workers=True,
         # multiprocessing_context="spawn",
     )

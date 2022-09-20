@@ -6,16 +6,13 @@ import torch
 import clip
 
 USE_CACHE = False
+BATCH_SIZE = 2048
+OUTDIR = "embeddings"
+
+os.makedirs(OUTDIR, exist_ok=True)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)
-
-prompts = set()
-outdir = "embeddings"
-os.makedirs(outdir, exist_ok=True)
-
-batch_size = 2048
-text_embeddings = None
 
 with open('data.csv', newline='') as csvfile:
     reader = csv.reader(csvfile)
@@ -26,18 +23,19 @@ with open('data.csv', newline='') as csvfile:
 prompt_ids = [data[0] for data in prompt_data]
 prompts = (data[1] for data in prompt_data)
 
-prompt_ids_filename = os.path.join(outdir, f"prompt_ids.npy")
+prompt_ids_filename = os.path.join(OUTDIR, f"prompt_ids.npy")
 np.save(prompt_ids_filename, prompt_ids)
 
+text_embeddings = None
 batched_prompts = []
 for idx, prompt in enumerate(prompts):
     batched_prompts.append(prompt)
 
-    if len(batched_prompts) % batch_size == 0 or idx == len(prompt_ids) - 1:
+    if len(batched_prompts) % BATCH_SIZE == 0 or idx == len(prompt_ids) - 1:
         print(f"processing -- {idx + 1}")
 
         batch_text_embeddings_filename = os.path.join(
-            outdir, f"text_embeddings_{idx + 1}.npy")
+            OUTDIR, f"text_embeddings_{idx + 1}.npy")
 
         if os.path.exists(batch_text_embeddings_filename) and USE_CACHE:
             batch_text_embeddings = np.load(batch_text_embeddings_filename)
@@ -72,5 +70,5 @@ for idx, prompt in enumerate(prompts):
         batched_prompts = []
 
 print(f"{len(text_embeddings)} CLIP embeddings extracted!")
-text_embeddings_filename = os.path.join(outdir, f"text_embeddings.npy")
+text_embeddings_filename = os.path.join(OUTDIR, f"text_embeddings.npy")
 np.save(text_embeddings_filename, text_embeddings)
