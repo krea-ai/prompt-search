@@ -10,7 +10,7 @@
 <h3 align="center">prompt search</h3>
 
   <p align="center">
-    simple implementation of CLIP search with a prompt database.
+    simple implementation of CLIP search with a database of prompts.
     <br />
     <a href="https://krea.ai"><strong>explore prompts</strong></a>
     <br />
@@ -18,8 +18,6 @@
     <a href="https://theprompter.substack.com/">newsletter</a>
     ·
     <a href="https://discord.gg/3mkFbvPYut">community</a>
-    ·
-    <a href="#contributing">contribute</a>
   </p>
 </div>
 
@@ -56,8 +54,8 @@ We used conda to set up our environment. You will basically need the following p
 ```
 - autofaiss==2.15.3
 - clip-by-openai==1.1
-- torch==1.12.1
-- torchvision==0.13.1
+- onnxruntime==1.12.1
+- onnx==1.11.0
 ```
 
 We used `python 3.7`.
@@ -73,27 +71,57 @@ We will use a dataset of prompts generated with stable diffusion from [open-prom
 
 # CLIP Search
 
-You will need a GPU for this one. We recommend using [https://lambdalabs.com/service/gpu-cloud](Lambda)—great pricing and easy to set up.
+You will need a GPU for this one. We recommend using [Lambda](https://lambdalabs.com/service/gpu-cloud)—great pricing and easy to set up.
 
-## Image Search
+## Set Up Lambda 
+[Sign up](https://lambdalabs.com/cloud/entrance) to Lambda. Fill your information, complete the email verification and add a credit card.
+
+Press the "Launch instance" button and introduce your public ssh key. Your public key should be on the folder in `~/.ssh/` in a file named `id_rsa.pub`. You can see its content with `cat ~/.ssh/id_rsa.pub`. Copy and paste the result to lambda and you'll be set. If you do not find this folder, check out [here](https://docs.oracle.com/en/cloud/cloud-at-customer/occ-get-started/generate-ssh-key-pair.html) how you can generate an ssh key, it's really straightforward.
+
+For this project a *1x RTX 6000 (24GB)* should be enough. Launch the instance with the *Launch instance* button in the *Instances* page from the Lambda dasboard.
+
+Once the instance is launched, wait for a minute or two until the Status of the machine says "Running". Then, copy the line under "SSH LOGIN", the one that looks like: `ssh ubuntu@<ip-address>`, where the `<ip-address>` will be a series of numbers in the form `123.456.789.012`. Paste it on your terminal, type "yes" to the prompt that will appear and you'll have accessed to your new machine with an GPU!
+First, *sign in* or *sign up* to [Lambda](https://lambdalabs.com/cloud/entrance). 
+
+## Search Images
+### Download images
+The first step will consist of downloading the images from the `csv` file that we downloaded. To do so, we will leverage the [img2dataset](https://github.com/rom1504/img2dataset) package.
+
+First, execute the following command to create a new file with links from images:
+
+```
+python extract_img_links_from_csv.py
+```
+
+Note that by default, the process will create the links from `1k.csv`. Change the `CSV_FILE` variable in `extract_img_links_from_csv.py` if you want to use another dataset.
+
+```
+CSV_FILE = "./1k.csv"
+OUTPUT_FILE = "./img_links.txt"
+```
+
+The result will be stored in `img_links.txt`. 
+
+Now, run the following command to download images:
+
+```bash
+img2dataset --url_list img_links.txt --output_folder imgs --thread_count=64 --image_size=256
+```
+
+The output will be stored in the folder `imgs`, within the folder `00000`.
+
 ### Compute Visual CLIP Embeddings
-The first step will consist of downloading the images from the `csv` file that we downloaded. Create a folder named `imgs` with all this data (it might take a while).
 
-Once imgs is filled with images, you can run the following command to compute the visual CLIP embeddings from each of them:
+Once the folder `imgs` is created and filled with generated images, you can run the following command to compute visual CLIP embeddings for each of them:
 
 `python extract_visual_clip_embeddings.py`
 
 The following are the main parameters that you might need to change: 
 ```
-IMG_DIR = "./imgs" #directory where all your images were downloaded
-DATA_PATH = "./1k.csv" #path to the data that was used to download the images
+IMG_DIR = "./imgs/00000" #directory where all your images were downloaded
 BATCH_SIZE = 128 #number of CLIP embeddings computed at each iterations
 NUM_WORKERS = 14 #number of workers that will run in parallel (recommended is number_of_cores - 2)
 ```
-
-The default value for `DATA_PATH` is the small dataset. Make sure to change it for the [larger](https://drive.google.com/file/d/1c4WHxtlzvHYd0UY5WCMJNn2EO-Aiv2A0/view) one once you made sure that everything worked.
-
-Note that the filename of the images in `imgs` and the `ID` from the `csv` with the data are correlated. By default, the dataset that we used is structured in this way, but you might want to make sure that this is consistent with your dataset if you use custom data.
 
 Once the process is finished, you will see a new folder named `visual_embeddings`. This folder will contain two other folders named `ids` and `embeddings`. `ids` will contain `.npy` files with information of the `ids` of each generation computed at each batch. `embeddings` will contain `.npy` files with the resulting embeddings computed at each batch. This data will be useful for computing the KNN indices, since we need to have information about both, the CLIP embedding and the ID they represent.
 
@@ -102,21 +130,34 @@ If you did not make any modifications in the default output structure from the p
 
 `python create_visual_knn_indices.py`
 
-This script will read all the ids 
+The result will be stored within a new folder named `knn_indices` in a file named `visual_prompts.index`.
 
 ### Search Images 
-#### Search from Prompts
-#### Search from Images
 
+In order to make the search of generations more efficient, we will use an ONNX version of CLIP. We will use the implementation from [`CLIP-ONNX`](https://github.com/Lednik7/CLIP-ONNX) for this.
 
-## Prompt Search
-### Compute Textual CLIP Embeddings
+Install the following package:
+```bash
+pip install git+https://github.com/Lednik7/CLIP-ONNX.git --no-deps
+```
 
-### Text-to-image and Image-to-image CLIP-search 
+Once installed, download the ONNX CLIP models with the following command:
+```
+wget https://clip-as-service.s3.us-east-2.amazonaws.com/models/onnx/ViT-B-32/visual.onnx
+wget https://clip-as-service.s3.us-east-2.amazonaws.com/models/onnx/ViT-B-32/textual.onnx
+```
+Now, execute the following line to perform the search with regular CLIP and ONNX CLIP:
 
-### Search Prompts from Prompts
+```
+python test_visual_knn_index.py
+```
 
-### Search Prompts 
-#### Search from Prompts
+The result will be a list of image filenames that are the most similar to the prompt `"image of a blue robot with red background"` and the image `prompt-search.png`.
 
-#### Search from Images
+Change the following parameters in `test_visual_knn_index.py` to try out different input prompts and images:
+
+```python
+INPUT_IMG_PATH = "./prompt-search.png"
+INPUT_PROMPT = "image of a blue robot with red background"
+NUM_RESULTS = 5    
+```
