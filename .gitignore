@@ -1,0 +1,7 @@
+imgs
+knn_indices
+visual_embeddings
+
+*.onnx
+
+img_links.txt
