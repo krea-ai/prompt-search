@@ -1,4 +1,4 @@
-name: clip-search
+name: prompt-search
 channels:
   - defaults
 dependencies:
@@ -7,5 +7,5 @@ dependencies:
   - pip:
     - autofaiss==2.15.3
     - clip-by-openai==1.1
-    - torch==1.12.1
-    - torchvision==0.13.1
+    - img2dataset==1.33.0
+    - onnxruntime==1.12.1
