@@ -12,13 +12,14 @@ from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normal
 try:
     from torchvision.transforms import InterpolationMode
     BICUBIC = InterpolationMode.BICUBIC
-    
+
 except ImportError:
     BICUBIC = Image.BICUBIC
 
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 USE_CACHE = False
-IMG_DIR = "./imgs"
-DATA_PATH = "./data.csv"
+IMG_DIR = "./imgs/00000"
 BATCH_SIZE = 128
 NUM_WORKERS = 14
 PERFETCH_FACTOR = 14
@@ -34,11 +35,12 @@ def _convert_image_to_rgb(image):
 
 
 class CLIPImgDataset(Dataset):
+
     def __init__(
         self,
         img_dir: str,
     ):
-        self.img_paths = glob.glob(f"{img_dir}/*", )
+        self.img_paths = glob.glob(f"{img_dir}/*.jpg", )
 
         self.transform = Compose([
             Resize(224, interpolation=BICUBIC),
@@ -67,18 +69,10 @@ class CLIPImgDataset(Dataset):
 
 
 def main():
-    print("computing generation ID mapper...")
-    generation_id_to_prompt_id = {}
-    with open(DATA_PATH, newline='') as csvfile:
-        reader = csv.reader(csvfile)
-        _headers = next(reader)
-
-        generation_id_to_prompt_id = {row[2]: row[0] for row in reader}
-
     print("setting up dataloader...")
     model, _preprocess = clip.load(
         "ViT-B/32",
-        device="cuda",
+        device=DEVICE,
     )
     clip_img_dataset = CLIPImgDataset(img_dir=IMG_DIR, )
     clip_img_dataloader = DataLoader(
@@ -92,17 +86,12 @@ def main():
 
     print("starting to process!")
     for idx, (batched_imgs,
-              batched_generation_ids) in enumerate(clip_img_dataloader):
-        print(f"processing! -- {(idx + 1) * BATCH_SIZE}")
-
-        prompt_ids = [
-            generation_id_to_prompt_id[str(generation_id)]
-            for generation_id in batched_generation_ids
-        ]
+              generation_ids) in enumerate(clip_img_dataloader):
+        print(f"processing! -- {(idx + 1) * BATCH_SIZE} / {len(clip_img_dataset)}")
 
         with torch.no_grad():
             batched_img_embeddings = model.visual(
-                batched_imgs.cuda().type(model.dtype), )
+                batched_imgs.to(DEVICE, torch.float16), )
 
         batched_img_embeddings /= batched_img_embeddings.norm(dim=-1,
                                                               keepdim=True)
@@ -111,7 +100,7 @@ def main():
 
         prompt_ids_filename = os.path.join(OUTDIR,
                                            f"ids/{str(idx).zfill(9)}.npy")
-        np.save(prompt_ids_filename, np.asarray(prompt_ids))
+        np.save(prompt_ids_filename, np.asarray(generation_ids))
 
         img_embeddings_filename = os.path.join(
             OUTDIR, f"embeddings/{str(idx).zfill(9)}.npy")
